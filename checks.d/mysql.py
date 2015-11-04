@@ -240,6 +240,10 @@ GALERA_VARS = {
     'wsrep_local_send_queue_avg': ('mysql.galera.wsrep_local_send_queue_avg', GAUGE),
 }
 
+PERFORMANCE_VARS = {
+    'perf_digest_95th_percentile_avg_us': ('mysql.perf.digest_95th_percentile.avg_us', GAUGE),
+}
+
 
 class MySql(AgentCheck):
     SERVICE_CHECK_NAME = 'mysql.can_connect'
@@ -416,6 +420,16 @@ class MySql(AgentCheck):
             self.log.debug("Collecting Galera Metrics.")
             VARS.update(GALERA_VARS)
 
+        if 'extra_performance_metrics' in options and options['extra_performance_metrics']:
+            results['perf_digest_95th_percentile_avg_us'] = self._get_query_exec_time_95th_us(db)
+            VARS.update(PERFORMANCE_VARS)
+
+            # report avg query response time per schema to Datadog
+            schema_perf = self._query_exec_time_per_schema(db)
+            for schema, avg in schema_perf.iteritems():
+                schema_tags = tags + ["schema:{0}".format(schema)]
+                self.gauge("mysql.performance.query_run_time_avg", avg, tags=schema_tags)
+
         self._rate_or_gauge_vars(VARS, results, tags)
 
         if 'replication' in options and options['replication']:
@@ -451,12 +465,17 @@ class MySql(AgentCheck):
     def _rate_or_gauge_vars(self, variables, dbResults, tags):
         for variable, metric in variables.iteritems():
             metric_name, metric_type = metric
-            value = self._collect_scalar(variable, dbResults)
-            if value is not None:
-                if metric_type == RATE:
-                    self.rate(metric_name, value, tags=tags)
-                elif metric_type == GAUGE:
-                    self.gauge(metric_name, value, tags=tags)
+            # value = self._collect_scalar(variable, dbResults)
+            for tag, value in self._collect_all_scalars(variable, dbResults):
+                metric_tags = tags
+                if tag:
+                    metric_tags.append(tag)
+
+                if value is not None:
+                    if metric_type == RATE:
+                        self.rate(metric_name, value, tags=metric_tags)
+                    elif metric_type == GAUGE:
+                        self.gauge(metric_name, value, tags=metric_tags)
 
     def _version_compatible(self, db, host, compat_version):
         # some patch version numbers contain letters (e.g. 5.0.51a)
@@ -505,6 +524,15 @@ class MySql(AgentCheck):
         self.mysql_version[host] = version
         self.service_metadata('version', ".".join(version))
         return version
+
+    def _collect_all_scalars(self, key, dict):
+        if isinstance(dict[key], dict):
+            for tag, val in dict[key].iteritems():
+                yield tag, self._collect_type(tag, dict[key])
+        else:
+            yield None, self._collect_type(key, dict, float)
+
+        return
 
     def _collect_scalar(self, key, dict):
         return self._collect_type(key, dict, float)
@@ -1013,3 +1041,62 @@ class MySql(AgentCheck):
             results[metric] = str(value)
 
         return results
+
+    def _get_query_exec_time_95th_us(self, db):
+        # Fetches the 95th percentile query execution time and returns the value
+        # in microseconds
+
+        sql_95th_percentile = """SELECT s2.avg_us avg_us,
+                IFNULL(SUM(s1.cnt)/NULLIF((SELECT COUNT(*) FROM performance_schema.events_statements_summary_by_digest), 0), 0) percentile
+            FROM (SELECT COUNT(*) cnt, ROUND(avg_timer_wait/1000000) AS avg_us
+                    FROM performance_schema.events_statements_summary_by_digest
+                    GROUP BY avg_us) AS s1
+            JOIN (SELECT COUNT(*) cnt, ROUND(avg_timer_wait/1000000) AS avg_us
+                    FROM performance_schema.events_statements_summary_by_digest
+                    GROUP BY avg_us) AS s2
+            ON s1.avg_us <= s2.avg_us
+            GROUP BY s2.avg_us
+            HAVING percentile > 0.95
+            ORDER BY percentile
+            LIMIT 1"""
+
+        cursor = db.cursor()
+        cursor.execute(sql_95th_percentile)
+
+        if cursor.rowcount < 1:
+            raise Exception("Failed to fetch record from the table performance_schema.events_statements_summary_by_digest")
+
+        row = cursor.fetchone()
+        query_exec_time_95th_per = row[0]
+
+        cursor.close()
+        del cursor
+
+        return query_exec_time_95th_per
+
+    def _query_exec_time_per_schema(self, db):
+        # Fetches the avg query execution time per schema and returns the
+        # value in microseconds
+
+        sql_avg_query_run_time = """SELECT schema_name, SUM(count_star) cnt, ROUND(AVG(avg_timer_wait)/1000000) AS avg_us
+            FROM performance_schema.events_statements_summary_by_digest
+            WHERE schema_name IS NOT NULL
+            GROUP BY schema_name"""
+
+        cursor = db.cursor()
+        cursor.execute(sql_avg_query_run_time)
+
+        if cursor.rowcount < 1:
+            raise Exception("Failed to fetch records from the table performance_schema.events_statements_summary_by_digest")
+
+        schema_query_avg_run_time = {}
+        for row in cursor.fetchall():
+            schema_name = str(row[0])
+            avg_us = long(row[2])
+
+            schema_query_avg_run_time[schema_name] = avg_us
+
+        cursor.close()
+        del cursor
+
+        return schema_query_avg_run_time
