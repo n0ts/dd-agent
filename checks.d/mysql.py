@@ -264,19 +264,24 @@ class MySql(AgentCheck):
         if (not host or not user) and not defaults_file:
             raise Exception("Mysql host and user are needed.")
 
-        db = self._connect(host, port, mysql_sock, user,
-                           password, defaults_file)
+        try:
+            db = self._connect(host, port, mysql_sock, user,
+                            password, defaults_file)
 
-        # Metadata collection
-        self._collect_metadata(db, host)
+            # Metadata collection
+            self._collect_metadata(db, host)
 
-        # Metric collection
-        self._collect_metrics(host, db, tags, options, queries)
-        if Platform.is_linux():
-            self._collect_system_metrics(host, db, tags)
+            # Metric collection
+            self._collect_metrics(host, db, tags, options, queries)
+            if Platform.is_linux():
+                self._collect_system_metrics(host, db, tags)
 
-        # Close connection
-        db.close()
+        except Exception:
+            raise
+        finally:
+            # Close connection
+            if db.open():
+                db.close()
 
     def _get_config(self, instance):
         host = instance.get('server', '')
