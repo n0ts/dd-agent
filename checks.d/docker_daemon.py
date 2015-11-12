@@ -16,7 +16,7 @@ from utils.platform import Platform
 
 EVENT_TYPE = 'docker'
 SERVICE_CHECK_NAME = 'docker.service_up'
-SIZE_REFRESH_RATE = 5 # Collect container sizes every 5 iterations of the check
+SIZE_REFRESH_RATE = 5  # Collect container sizes every 5 iterations of the check
 MAX_CGROUP_LISTING_RETRIES = 3
 CONTAINER_ID_RE = re.compile('[0-9a-f]{64}')
 POD_NAME_LABEL = "io.kubernetes.pod.name"
@@ -85,17 +85,22 @@ DEFAULT_IMAGE_TAGS = [
 ]
 
 
-def image_tag_extractor(c, key):
-    if "Image" in c:
-        split = c["Image"].split(":", 1)
+def image_tag_extractor(co, key):
+    if "Image" in co:
+        split = co["Image"].split(":")
         if len(split) <= key:
             return None
-        else:
-            return [split[key]]
-    if "RepoTags" in c:
-        splits = [el.split(":", 1) for el in c["RepoTags"]]
+        elif len(split) > 2:
+            # if the repo is in the image name and has the form 'docker.clearbit:5000'
+            # the split will be like [repo_url, repo_port/image_name, image_tag]. Let's avoid that
+            split = [':'.join(split[:-1]), split[-1]]
+        return [split[key]]
+    if "RepoTags" in co:
+        splits = [el.split(":") for el in co["RepoTags"]]
         tags = []
         for split in splits:
+            if len(split) > 2:
+                split = [':'.join(split[:-1]), split[-1]]
             if len(split) > key:
                 tags.append(split[key])
         if len(tags) > 0:
