@@ -246,9 +246,13 @@ PERFORMANCE_VARS = {
     'perf_digest_95th_percentile_avg_us': ('mysql.performance.digest_95th_percentile.avg_us', GAUGE),
 }
 
+REPLICA_VARS = {
+    'Seconds_Behind_Master': ('mysql.replication.seconds_behind_master', GAUGE),
+}
 
 class MySql(AgentCheck):
     SERVICE_CHECK_NAME = 'mysql.can_connect'
+    SLAVE_SERVICE_CHECK_NAME = 'mysql.replication.slave_running'
     MAX_CUSTOM_QUERIES = 20
 
     def __init__(self, name, init_config, agentConfig, instances=None):
@@ -443,6 +447,7 @@ class MySql(AgentCheck):
 
         if 'replication' in options and options['replication']:
             # get slave running form global status page
+            slave_running_status = AgentCheck.UNKNOWN
             slave_running = self._collect_string('Slave_running', results)
             if slave_running is not None:
                 if slave_running.lower().strip() == 'on':
@@ -452,14 +457,13 @@ class MySql(AgentCheck):
                     slave_running = 0
                     slave_running_status = AgentCheck.CRITICAL
                 # deprecated in favor of service_check("mysql.replication.slave_running")
-                self.gauge("mysql.replication.slave_running", slave_running, tags=tags)
-            self.service_check("mysql.replication.slave_running", slave_running_status, tags=tags)
+                self.gauge(self.SLAVE_SERVICE_CHECK_NAME, slave_running, tags=tags)
 
-            self._collect_dict(
-                GAUGE,
-                {"Seconds_behind_master": "mysql.replication.seconds_behind_master"},
-                "SHOW SLAVE STATUS", db, tags=tags
-            )
+            self.service_check(self.SLAVE_SERVICE_CHECK_NAME, slave_running_status, tags=tags)
+
+            # Get replica stats
+            results.update(self._get_replica_stats(db))
+            VARS.update(REPLICA_VARS)
 
         # Collect custom query metrics
         # Max of 20 queries allowed
@@ -740,6 +744,17 @@ class MySql(AgentCheck):
         del cursor
 
         return return_val
+
+    def _get_replica_stats(self, db):
+        cursor = db.cursor()
+        cursor.execute(
+            "SHOW SLAVE STATUS;")
+
+        replica_results = dict(cursor.fetchall())
+        cursor.close()
+        del cursor
+
+        return replica_results
 
     def _get_stats_from_innodb_status(self, db):
         # There are a number of important InnoDB metrics that are reported in
