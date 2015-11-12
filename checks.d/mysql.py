@@ -242,7 +242,8 @@ GALERA_VARS = {
 }
 
 PERFORMANCE_VARS = {
-    'perf_digest_95th_percentile_avg_us': ('mysql.perf.digest_95th_percentile.avg_us', GAUGE),
+    'query_run_time_avg' : ('mysql.performance.query_run_time_avg', GAUGE),
+    'perf_digest_95th_percentile_avg_us': ('mysql.performance.digest_95th_percentile.avg_us', GAUGE),
 }
 
 
@@ -431,10 +432,12 @@ class MySql(AgentCheck):
             VARS.update(PERFORMANCE_VARS)
 
             # report avg query response time per schema to Datadog
+            schemas = {}
             schema_perf = self._query_exec_time_per_schema(db)
             for schema, avg in schema_perf.iteritems():
-                schema_tags = tags + ["schema:{0}".format(schema)]
-                self.gauge("mysql.performance.query_run_time_avg", avg, tags=schema_tags)
+                schemas["schema:{0}".format(schema)] = avg
+
+            results['query_run_time_avg'] = schemas
 
         self._rate_or_gauge_vars(VARS, results, tags)
 
@@ -534,7 +537,7 @@ class MySql(AgentCheck):
     def _collect_all_scalars(self, key, dict):
         if isinstance(dict[key], dict):
             for tag, val in dict[key].iteritems():
-                yield tag, self._collect_type(tag, dict[key])
+                yield tag, self._collect_type(tag, dict[key], float)
         else:
             yield None, self._collect_type(key, dict, float)
 
