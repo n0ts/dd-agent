@@ -6,6 +6,7 @@ import traceback
 
 # 3p
 import pymysql
+import psutil # permissions issues?
 
 # project
 from checks import AgentCheck
@@ -610,26 +611,43 @@ class MySql(AgentCheck):
 
         if pid:
             self.log.debug("pid: %s" % pid)
-            # At last, get mysql cpu data out of procfs
-            try:
-                # See http://www.kernel.org/doc/man-pages/online/pages/man5/proc.5.html
-                # for meaning: we get 13 & 14: utime and stime, in clock ticks and convert
-                # them with the right sysconf value (SC_CLK_TCK)
-                proc_file = open("/proc/%d/stat" % pid)
-                data = proc_file.readline()
-                proc_file.close()
-                fields = data.split(' ')
-                ucpu = fields[13]
-                kcpu = fields[14]
-                clk_tck = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
+            # At last, get mysql cpu data out of psutil or procfs
+            proc = psutil.Process(pid)
 
-                # Convert time to s (number of second of CPU used by mysql)
-                # It's a counter, it will be divided by the period, multiply by 100
-                # to get the percentage of CPU used by mysql over the period
-                self.rate("mysql.performance.user_time",
-                          int((float(ucpu) / float(clk_tck)) * 100), tags=tags)
-                self.rate("mysql.performance.kernel_time",
-                          int((float(kcpu) / float(clk_tck)) * 100), tags=tags)
+            try:
+                ucpu, scpu = None, None
+                if hasattr(proc, 'cpu_times') :
+                    ucpu = proc.cpu_times()[0]
+                    scpu = proc.cpu_times()[1]
+
+                elif Platform.is_linux():
+                    # See http://www.kernel.org/doc/man-pages/online/pages/man5/proc.5.html
+                    # for meaning: we get 13 & 14: utime and stime, in clock ticks and convert
+                    # them with the right sysconf value (SC_CLK_TCK)
+                    clk_tck = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
+                    proc_file = open("/proc/%d/stat" % pid)
+
+                    data = proc_file.readline()
+                    proc_file.close()
+                    fields = data.split(' ')
+                    # Convert time to s (number of second of CPU used by mysql)
+                    # It's a counter, it will be divided by the period, multiply by 100
+                    # to get the percentage of CPU used by mysql over the period
+                    #
+                    # FIX(?) : /proc stats are ticks since boot-up, so
+                    # dividing by clk_tck isn't but a conversation to seconds -
+                    # multiplying * 100 does not convert it into a percentage
+                    # Does reporting as a rate make that make sense?
+                    # ucpu = int((float(fields[13]) / float(clk_tck)) * 100)
+                    # scpu = int((float(fields[14]) / float(clk_tck)) * 100)
+                    ucpu = int((float(fields[13]) / float(clk_tck)))
+                    scpu = int((float(fields[14]) / float(clk_tck)))
+
+                if ucpu and scpu:
+                    self.rate("mysql.performance.user_time", ucpu, tags=tags)
+                    # should really be system_time
+                    self.rate("mysql.performance.kernel_time", scpu, tags=tags)
+
             except Exception:
                 self.warning("Error while reading mysql (pid: %s) procfs data\n%s"
                              % (pid, traceback.format_exc()))
