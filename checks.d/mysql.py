@@ -544,6 +544,8 @@ class MySql(AgentCheck):
         return version
 
     def _collect_all_scalars(self, key, dictionary):
+        if key not in dictionary:
+            yield None, None
         if isinstance(dictionary[key], dict):
             for tag, _ in dictionary[key].iteritems():
                 yield tag, self._collect_type(tag, dictionary[key], float)
