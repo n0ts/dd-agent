@@ -854,6 +854,8 @@ class MySql(AgentCheck):
             row = re.split(" +", line)
             row = [item.strip(',') for item in row]
             row = [item.strip(';') for item in row]
+            row = [item.strip('[') for item in row]
+            row = [item.strip(']') for item in row]
 
             # SEMAPHORES
             if line.find('Mutex spin waits') == 0:
