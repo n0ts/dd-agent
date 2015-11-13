@@ -937,13 +937,30 @@ class MySql(AgentCheck):
                 results['Innodb_os_file_fsyncs'] = long(row[8])
             elif line.find('Pending normal aio reads:') == 0:
                 # Pending normal aio reads: 0, aio writes: 0,
-                results['Innodb_pending_normal_aio_reads'] = long(row[4])
-                results['Innodb_pending_normal_aio_writes'] = long(row[7])
+                # or Pending normal aio reads: [0, 0, 0, 0] , aio writes: [0, 0, 0, 0] ,
+                # or Pending normal aio reads: 0 [0, 0, 0, 0] , aio writes: 0 [0, 0, 0, 0] ,
+                if len(row) == 16:
+                    results['Innodb_pending_normal_aio_reads'] = (long(row[4]) + long(row[5]) +
+                                                                  long(row[6]) + long(row[7]))
+                    results['Innodb_pending_normal_aio_writes'] = (long(row[11]) + long(row[12]) +
+                                                                  long(row[13]) + long(row[14]))
+                elif len(row) == 18:
+                    results['Innodb_pending_normal_aio_reads'] = long(row[4])
+                    results['Innodb_pending_normal_aio_writes'] = long(row[12])
+                else:
+                    results['Innodb_pending_normal_aio_reads'] = long(row[4])
+                    results['Innodb_pending_normal_aio_writes'] = long(row[7])
             elif line.find('ibuf aio reads') == 0:
                 #  ibuf aio reads: 0, log i/o's: 0, sync i/o's: 0
-                results['Innodb_pending_ibuf_aio_reads'] = long(row[3])
-                results['Innodb_pending_aio_log_ios'] = long(row[6])
-                results['Innodb_pending_aio_sync_ios'] = long(row[9])
+                #  or ibuf aio reads:, log i/o's:, sync i/o's:
+                if len(row) == 10:
+                    results['Innodb_pending_ibuf_aio_reads'] = long(row[3])
+                    results['Innodb_pending_aio_log_ios'] = long(row[6])
+                    results['Innodb_pending_aio_sync_ios'] = long(row[9])
+                elif len(row) == 7:
+                    results['Innodb_pending_ibuf_aio_reads'] = 0
+                    results['Innodb_pending_aio_log_ios'] = 0
+                    results['Innodb_pending_aio_sync_ios'] = 0
             elif line.find('Pending flushes (fsync)') == 0:
                 # Pending flushes (fsync) log: 0; buffer pool: 0
                 results['Innodb_pending_log_flushes'] = long(row[4])
