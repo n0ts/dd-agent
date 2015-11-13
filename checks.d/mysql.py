@@ -426,6 +426,7 @@ class MySql(AgentCheck):
         if 'extra_innodb_metrics' in options and options['extra_innodb_metrics']:
             self.log.debug("Collecting Extra Innodb Metrics")
             VARS.update(OPTIONAL_INNODB_VARS)
+            results.update(self._get_stats_from_innodb_status(self, db))
 
         if 'galera_cluster' in options and options['galera_cluster']:
             self.log.debug("Collecting Galera Metrics.")
@@ -546,6 +547,7 @@ class MySql(AgentCheck):
     def _collect_all_scalars(self, key, dictionary):
         if key not in dictionary:
             yield None, None
+
         if isinstance(dictionary[key], dict):
             for tag, _ in dictionary[key].iteritems():
                 yield tag, self._collect_type(tag, dictionary[key], float)
