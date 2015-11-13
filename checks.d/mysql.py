@@ -443,7 +443,6 @@ class MySql(AgentCheck):
 
             results['query_run_time_avg'] = schemas
 
-        self._rate_or_gauge_vars(VARS, results, tags)
 
         if 'replication' in options and options['replication']:
             # get slave running form global status page
@@ -464,6 +463,8 @@ class MySql(AgentCheck):
             # Get replica stats
             results.update(self._get_replica_stats(db))
             VARS.update(REPLICA_VARS)
+
+        self._rate_or_gauge_vars(VARS, results, tags)
 
         # Collect custom query metrics
         # Max of 20 queries allowed
@@ -544,10 +545,10 @@ class MySql(AgentCheck):
 
     def _collect_all_scalars(self, key, dictionary):
         if isinstance(dictionary[key], dict):
-            for tag, _ in dict[key].iteritems():
-                yield tag, self._collect_type(tag, dict[key], float)
+            for tag, _ in dictionary[key].iteritems():
+                yield tag, self._collect_type(tag, dictionary[key], float)
         else:
-            yield None, self._collect_type(key, dict, float)
+            yield None, self._collect_type(key, dictionary, float)
 
         return
 
