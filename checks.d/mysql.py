@@ -426,7 +426,7 @@ class MySql(AgentCheck):
         if 'extra_innodb_metrics' in options and options['extra_innodb_metrics']:
             self.log.debug("Collecting Extra Innodb Metrics")
             VARS.update(OPTIONAL_INNODB_VARS)
-            results.update(self._get_stats_from_innodb_status(self, db))
+            results.update(self._get_stats_from_innodb_status(db))
 
         if 'galera_cluster' in options and options['galera_cluster']:
             self.log.debug("Collecting Galera Metrics.")
