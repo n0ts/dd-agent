@@ -270,6 +270,7 @@ class MySql(AgentCheck):
         if (not host or not user) and not defaults_file:
             raise Exception("Mysql host and user are needed.")
 
+        db = None
         try:
             db = self._connect(host, port, mysql_sock, user,
                             password, defaults_file)
