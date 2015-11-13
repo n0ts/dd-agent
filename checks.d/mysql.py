@@ -542,9 +542,9 @@ class MySql(AgentCheck):
         self.service_metadata('version', ".".join(version))
         return version
 
-    def _collect_all_scalars(self, key, dict):
-        if isinstance(dict[key], dict):
-            for tag, val in dict[key].iteritems():
+    def _collect_all_scalars(self, key, dictionary):
+        if isinstance(dictionary[key], dict):
+            for tag, _ in dict[key].iteritems():
                 yield tag, self._collect_type(tag, dict[key], float)
         else:
             yield None, self._collect_type(key, dict, float)
