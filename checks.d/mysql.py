@@ -259,6 +259,9 @@ class MySql(AgentCheck):
         AgentCheck.__init__(self, name, init_config, agentConfig, instances)
         self.mysql_version = {}
         self.greater_502 = {}
+        self.host = None
+        self.port = None
+        self.mysql_sock = None
 
     def get_library_versions(self):
         return {"pymysql": pymysql.__version__}
@@ -290,17 +293,17 @@ class MySql(AgentCheck):
                 db.close()
 
     def _get_config(self, instance):
-        host = instance.get('server', '')
+        self.host = instance.get('server', '')
+        self.port = int(instance.get('port', 0))
+        self.mysql_sock = instance.get('sock', '')
         user = instance.get('user', '')
-        port = int(instance.get('port', 0))
         password = instance.get('pass', '')
-        mysql_sock = instance.get('sock', '')
         defaults_file = instance.get('defaults_file', '')
         tags = instance.get('tags', None)
         options = instance.get('options', {})
         queries = instance.get('queries', [])
 
-        return host, port, user, password, mysql_sock, defaults_file, tags, options, queries
+        return self.host, self.port, user, password, self.mysql_sock, defaults_file, tags, options, queries
 
     def _connect(self, host, port, mysql_sock, user, password, defaults_file):
         service_check_tags = [
@@ -525,8 +528,14 @@ class MySql(AgentCheck):
         return compatible
 
     def _get_version(self, db, host):
-        if host in self.mysql_version:
-            version = self.mysql_version[host]
+        hostkey = host
+        if self.mysql_sock:
+            hostkey = hostkey + ":" + self.mysql_sock
+        elif self.port:
+            hostkey = hostkey + ":" + self.port
+
+        if hostkey in self.mysql_version:
+            version = self.mysql_version[hostkey]
             self.service_metadata('version', ".".join(version))
             return version
 
@@ -541,7 +550,7 @@ class MySql(AgentCheck):
         # http://dev.mysql.com/doc/refman/4.1/en/information-functions.html#function_version
         version = result[0].split('-')
         version = version[0].split('.')
-        self.mysql_version[host] = version
+        self.mysql_version[hostkey] = version
         self.service_metadata('version', ".".join(version))
         return version
 
