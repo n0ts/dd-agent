@@ -484,7 +484,8 @@ class MySql(AgentCheck):
     def _rate_or_gauge_vars(self, variables, dbResults, tags):
         for variable, metric in variables.iteritems():
             metric_name, metric_type = metric
-            # value = self._collect_scalar(variable, dbResults)
+            if variable not in dbResults:
+                continue
             if isinstance(dbResults[variable], dict):
                 for tag, value in self._collect_all_scalars(variable, dbResults):
                     metric_tags = tags
