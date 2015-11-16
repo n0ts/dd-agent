@@ -349,6 +349,9 @@ class MySql(AgentCheck):
 
     def _collect_metrics(self, host, db, tags, options, queries):
 
+        # Get aggregate of all VARS we want to collect
+        VARS = STATUS_VARS
+
         # collect results from db
         results = self._get_stats_from_status(db)
         results.update(self._get_stats_from_variables(db))
@@ -392,6 +395,10 @@ class MySql(AgentCheck):
                 results[
                     'Innodb_buffer_pool_bytes_used'] = innodb_buffer_pool_pages_used * innodb_page_size
 
+            if 'extra_innodb_metrics' in options and options['extra_innodb_metrics']:
+                self.log.debug("Collecting Extra Innodb Metrics")
+                VARS.update(OPTIONAL_INNODB_VARS)
+
         # Binary log statistics
         binlog_enabled = self._collect_string('log_bin', results)
         if binlog_enabled is not None and binlog_enabled.lower().strip() == 'on':
@@ -413,8 +420,6 @@ class MySql(AgentCheck):
             'Key_blocks_not_flushed', results) * key_cache_block_size
         results['Key_cache_utilization'] = key_cache_utilization
 
-        # Get aggregate of all VARS we want to collect
-        VARS = STATUS_VARS
         VARS.update(VARIABLES_VARS)
         VARS.update(INNODB_VARS)
         VARS.update(BINLOG_VARS)
@@ -425,11 +430,6 @@ class MySql(AgentCheck):
 
             if self._version_compatible(db, host, "5.6.6"):
                 VARS.update(OPTIONAL_STATUS_VARS_5_6_6)
-
-        if 'extra_innodb_metrics' in options and options['extra_innodb_metrics']:
-            self.log.debug("Collecting Extra Innodb Metrics")
-            VARS.update(OPTIONAL_INNODB_VARS)
-            results.update(self._get_stats_from_innodb_status(db))
 
         if 'galera_cluster' in options and options['galera_cluster']:
             self.log.debug("Collecting Galera Metrics.")
@@ -777,6 +777,7 @@ class MySql(AgentCheck):
 
         innodb_status = cursor.fetchone()
         innodb_status_text = innodb_status[2]
+        self.log.debug(innodb_status_text)
 
         cursor.close()
         del cursor
