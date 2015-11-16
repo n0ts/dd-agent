@@ -242,7 +242,7 @@ GALERA_VARS = {
 }
 
 PERFORMANCE_VARS = {
-    'query_run_time_avg' : ('mysql.performance.query_run_time_avg', GAUGE),
+    'query_run_time_avg' : ('mysql.performance.query_run_time.avg', GAUGE),
     'perf_digest_95th_percentile_avg_us': ('mysql.performance.digest_95th_percentile.avg_us', GAUGE),
 }
 
@@ -563,6 +563,7 @@ class MySql(AgentCheck):
 
         # # return
         for tag, _ in dictionary[key].iteritems():
+            self.log.debug("Collecting key {0} for tag {1}.".format(key,tag))
             yield tag, self._collect_type(tag, dictionary[key], float)
 
 
