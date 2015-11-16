@@ -777,7 +777,6 @@ class MySql(AgentCheck):
 
         innodb_status = cursor.fetchone()
         innodb_status_text = innodb_status[2]
-        self.log.debug(innodb_status_text)
 
         cursor.close()
         del cursor
