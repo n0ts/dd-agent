@@ -484,25 +484,15 @@ class MySql(AgentCheck):
     def _rate_or_gauge_vars(self, variables, dbResults, tags):
         for variable, metric in variables.iteritems():
             metric_name, metric_type = metric
-            if variable not in dbResults:
-                continue
-            if isinstance(dbResults[variable], dict):
-                for tag, value in self._collect_all_scalars(variable, dbResults):
-                    metric_tags = tags
-                    if tag:
-                        metric_tags.append(tag)
-                    if value is not None:
-                        if metric_type == RATE:
-                            self.rate(metric_name, value, tags=metric_tags)
-                        elif metric_type == GAUGE:
-                            self.gauge(metric_name, value, tags=metric_tags)
-            else:
-                value = self._collect_scalar(variable, dbResults)
+            for tag, value in self._collect_all_scalars(variable, dbResults):
+                metric_tags = list(tags)
+                if tag:
+                    metric_tags.append(tag)
                 if value is not None:
                     if metric_type == RATE:
-                        self.rate(metric_name, value, tags=tags)
+                        self.rate(metric_name, value, tags=metric_tags)
                     elif metric_type == GAUGE:
-                        self.gauge(metric_name, value, tags=tags)
+                        self.gauge(metric_name, value, tags=metric_tags)
 
     def _version_compatible(self, db, host, compat_version):
         # some patch version numbers contain letters (e.g. 5.0.51a)
@@ -553,18 +543,13 @@ class MySql(AgentCheck):
         return version
 
     def _collect_all_scalars(self, key, dictionary):
-        # if key not in dictionary:
-        #     yield None, None
-        # elif isinstance(dictionary[key], dict):
-        #     for tag, _ in dictionary[key].iteritems():
-        #         yield tag, self._collect_type(tag, dictionary[key], float)
-        # else:
-        #     yield None, self._collect_type(key, dictionary, float)
-
-        # # return
-        for tag, _ in dictionary[key].iteritems():
-            self.log.debug("Collecting key {0} for tag {1}.".format(key,tag))
-            yield tag, self._collect_type(tag, dictionary[key], float)
+        if key not in dictionary:
+            yield None, None
+        elif isinstance(dictionary[key], dict):
+            for tag, _ in dictionary[key].iteritems():
+                yield tag, self._collect_type(tag, dictionary[key], float)
+        else:
+            yield None, self._collect_type(key, dictionary, float)
 
 
     def _collect_scalar(self, key, dict):
