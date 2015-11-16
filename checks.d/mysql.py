@@ -553,7 +553,7 @@ class MySql(AgentCheck):
         else:
             yield None, self._collect_type(key, dictionary, float)
 
-        return
+        # return
 
     def _collect_scalar(self, key, dict):
         return self._collect_type(key, dict, float)
