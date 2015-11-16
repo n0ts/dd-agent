@@ -491,11 +491,11 @@ class MySql(AgentCheck):
                     metric_tags = tags
                     if tag:
                         metric_tags.append(tag)
-                if value is not None:
-                    if metric_type == RATE:
-                        self.rate(metric_name, value, tags=metric_tags)
-                    elif metric_type == GAUGE:
-                        self.gauge(metric_name, value, tags=metric_tags)
+                    if value is not None:
+                        if metric_type == RATE:
+                            self.rate(metric_name, value, tags=metric_tags)
+                        elif metric_type == GAUGE:
+                            self.gauge(metric_name, value, tags=metric_tags)
             else:
                 value = self._collect_scalar(variable, dbResults)
                 if value is not None:
