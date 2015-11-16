@@ -530,9 +530,9 @@ class MySql(AgentCheck):
     def _get_version(self, db, host):
         hostkey = host
         if self.mysql_sock:
-            hostkey = hostkey + ":" + self.mysql_sock
+            hostkey = "{0}:{1}".format(hostkey, self.mysql_sock)
         elif self.port:
-            hostkey = hostkey + ":" + self.port
+            hostkey = "{0}:{1}".format(hostkey, self.port)
 
         if hostkey in self.mysql_version:
             version = self.mysql_version[hostkey]
