@@ -433,7 +433,10 @@ class MySql(AgentCheck):
             VARS.update(GALERA_VARS)
 
         if 'extra_performance_metrics' in options and options['extra_performance_metrics']:
-            results['perf_digest_95th_percentile_avg_us'] = self._get_query_exec_time_95th_us(db)
+            if self._version_compatible(db, host, "5.6.0"):
+                results['perf_digest_95th_percentile_avg_us'] = self._get_query_exec_time_95th_us(db)
+            else:
+                results['perf_digest_95th_percentile_avg_us'] = None
             VARS.update(PERFORMANCE_VARS)
 
             # report avg query response time per schema to Datadog
