@@ -437,16 +437,19 @@ class MySql(AgentCheck):
 
         if 'extra_performance_metrics' in options and options['extra_performance_metrics'] and \
                 self._version_compatible(db, host, "5.6.0"):
-            results['perf_digest_95th_percentile_avg_us'] = self._get_query_exec_time_95th_us(db)
 
             # report avg query response time per schema to Datadog
             schemas = {}
-            schema_perf = self._query_exec_time_per_schema(db)
-            for schema, avg in schema_perf.iteritems():
-                schemas["schema:{0}".format(schema)] = avg
+            try:
+                results['perf_digest_95th_percentile_avg_us'] = self._get_query_exec_time_95th_us(db)
+                schema_perf = self._query_exec_time_per_schema(db)
+                for schema, avg in schema_perf.iteritems():
+                    schemas["schema:{0}".format(schema)] = avg
+                results['query_run_time_avg'] = schemas
+                VARS.update(PERFORMANCE_VARS)
+            except Exception as e:
+                self.log.debug("Performance metrics unavailable at this time: {0}".format(e))
 
-            results['query_run_time_avg'] = schemas
-            VARS.update(PERFORMANCE_VARS)
 
 
         if 'replication' in options and options['replication']:
