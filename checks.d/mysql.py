@@ -307,8 +307,8 @@ class MySql(AgentCheck):
 
     def _connect(self, host, port, mysql_sock, user, password, defaults_file):
         service_check_tags = [
-            'host:%s' % host,
-            'port:%s' % port
+            'server:{0}'.format(host),
+            'port:{0}'.format(port)
         ]
 
         try:
@@ -321,7 +321,7 @@ class MySql(AgentCheck):
                     passwd=password
                 )
                 service_check_tags = [
-                    'host:%s' % mysql_sock,
+                    'server:{0}'.format(mysql_sock),
                     'port:unix_socket'
                 ]
             elif port:
