@@ -282,7 +282,7 @@ class MySql(AgentCheck):
 
             # Metric collection
             self._collect_metrics(host, db, tags, options, queries)
-            if Platform.is_linux():
+            if not Platform.is_windows():
                 self._collect_system_metrics(host, db, tags)
 
         except Exception:
@@ -724,7 +724,7 @@ class MySql(AgentCheck):
         cpu = None
         mem = None
         try:
-            if Platform.is_windows() is not True:
+            if not Platform.is_windows():
                 ps, _, _ = get_subprocess_output(['ps', '-p{0}'.format(pid), '-o', '%cpu,%mem'], self.log)
                 pslines = ps.strip().splitlines()
                 # First line is header, second line is mysql pid
