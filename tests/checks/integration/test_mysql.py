@@ -21,7 +21,8 @@ class TestMySql(AgentCheckTest):
         'options': {
             'replication': True,
             'extra_status_metrics': True,
-            'extra_innodb_metrics': True
+            'extra_innodb_metrics': True,
+            'extra_performance_metrics': True
         },
         'tags': METRIC_TAGS,
         'queries': [
@@ -312,7 +313,12 @@ class TestMySql(AgentCheckTest):
                 continue
             if mname == 'mysql.performance.cpu_time' and Platform.is_windows():
                 continue
-            self.assertMetric(mname, tags=self.METRIC_TAGS, count=1)
+
+            if mname == 'mysql.performance.query_run_time.avg':
+                self.assertMetric(mname, tags=self.METRIC_TAGS+['schema:testdb'], count=1)
+            else:
+                self.assertMetric(mname, tags=self.METRIC_TAGS, count=1)
+
 
         # Assert service metadata
         self.assertServiceMetadata(['version'], count=1)
