@@ -12,7 +12,7 @@ class TestMySql(AgentCheckTest):
     CHECK_NAME = 'mysql'
 
     METRIC_TAGS = ['tag1', 'tag2']
-    SC_TAGS = ['host:localhost', 'port:0']
+    SC_TAGS = ['server:localhost', 'port:0']
 
     MYSQL_CONFIG = [{
         'server': 'localhost',
@@ -133,6 +133,7 @@ class TestMySql(AgentCheckTest):
     SYSTEM_METRICS = [
         'mysql.performance.user_time',
         'mysql.performance.kernel_time',
+        'mysql.performance.cpu_time',
     ]
 
     OPTIONAL_REPLICATION_METRICS = [
@@ -308,6 +309,8 @@ class TestMySql(AgentCheckTest):
             if mname == 'mysql.performance.user_time' and not Platform.is_linux():
                 continue
             if mname == 'mysql.performance.kernel_time' and not Platform.is_linux():
+                continue
+            if mname == 'mysql.performance.cpu_time' and Platform.is_windows():
                 continue
             self.assertMetric(mname, tags=self.METRIC_TAGS, count=1)
 

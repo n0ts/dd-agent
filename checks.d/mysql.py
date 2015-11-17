@@ -640,7 +640,7 @@ class MySql(AgentCheck):
             proc = psutil.Process(pid)
 
             try:
-                ucpu, scpu = None, None
+                ucpu, scpu, tcpu = None, None, None
                 if hasattr(proc, 'cpu_times') :
                     ucpu = proc.cpu_times()[0]
                     scpu = proc.cpu_times()[1]
@@ -668,10 +668,16 @@ class MySql(AgentCheck):
                     ucpu = int((float(fields[13]) / float(clk_tck)))
                     scpu = int((float(fields[14]) / float(clk_tck)))
 
+                elif Platform.is_windows() is not True:
+                    tcpu, _ = self._get_cpumem_from_ps(pid)
+
                 if ucpu and scpu:
                     self.rate("mysql.performance.user_time", ucpu, tags=tags)
                     # should really be system_time
                     self.rate("mysql.performance.kernel_time", scpu, tags=tags)
+                    self.rate("mysql.performance.cpu_time", ucpu+scpu, tags=tags)
+                elif tcpu:
+                    self.rate("mysql.performance.cpu_time", tcpu, tags=tags)
 
             except Exception:
                 self.warning("Error while reading mysql (pid: %s) procfs data\n%s"
@@ -713,6 +719,23 @@ class MySql(AgentCheck):
                 self.log.exception("Error while fetching mysql pid from ps")
 
         return pid
+
+    def _get_cpumem_from_ps(self, pid):
+        cpu = None
+        mem = None
+        try:
+            if Platform.is_windows() is not True:
+                ps, _, _ = get_subprocess_output(['ps', '-p{0}'.format(pid), '-o', '%cpu,%mem'], self.log)
+                pslines = ps.strip().splitlines()
+                # First line is header, second line is mysql pid
+                if len(pslines) == 2:
+                    fields = pslines[1].split()
+                    cpu = int(fields[0])
+                    mem = int(fields[1])
+        except Exception:
+            self.log.exception("Error while fetching cpu and memory usage from ps.")
+
+        return cpu, mem
 
     def _get_stats_from_status(self, db):
         cursor = db.cursor()
