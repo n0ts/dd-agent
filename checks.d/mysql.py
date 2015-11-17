@@ -289,7 +289,7 @@ class MySql(AgentCheck):
             raise
         finally:
             # Close connection
-            if db is not None and db.open():
+            if db is not None and db.open:
                 db.close()
 
     def _get_config(self, instance):
