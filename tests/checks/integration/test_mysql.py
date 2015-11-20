@@ -16,14 +16,14 @@ class TestMySql(AgentCheckTest):
 
     MYSQL_CONFIG = [{
         'server': 'localhost',
-        'port': 3308,
         'user': 'dog',
         'pass': 'dog',
         'options': {
             'replication': True,
             'extra_status_metrics': True,
             'extra_innodb_metrics': True,
-            'extra_performance_metrics': True
+            'extra_performance_metrics': True,
+            'schema_size_metrics': True,
         },
         'tags': METRIC_TAGS,
         'queries': [
@@ -277,6 +277,10 @@ class TestMySql(AgentCheckTest):
         'mysql.performance.digest_95th_percentile.avg_us',
     ]
 
+    SCHEMA_VARS = [
+        'information_schema_size'
+    ]
+
     def _test_optional_metrics(self, optional_metrics, at_least):
         """
         Check optional metrics - there should be at least `at_least` matches
@@ -305,7 +309,8 @@ class TestMySql(AgentCheckTest):
 
         # Test metrics
         for mname in (self.STATUS_VARS + self.VARIABLES_VARS + self.INNODB_VARS
-                      + self.BINLOG_VARS + self.SYSTEM_METRICS + self.PERFORMANCE_VARS):
+                      + self.BINLOG_VARS + self.SYSTEM_METRICS + self.PERFORMANCE_VARS
+                      + self.SCHEMA_VARS):
             # These two are currently not guaranteed outside of a Linux
             # environment.
             if mname == 'mysql.performance.user_time' and not Platform.is_linux():
