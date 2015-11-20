@@ -45,7 +45,9 @@ namespace :ci do
       # does travis have any mysql instance already running? :X
       # use another port?
       sh %(mkdir -p #{mysql_rootdir}/data)
+      sh %(mkdir -p #{mysql_rootdir}/data_replica)
       sh %(#{mysql_rootdir}/bin/mysqld --no-defaults --initialize --basedir=#{mysql_rootdir} --datadir=#{mysql_rootdir}/data --plugin-dir=#{mysql_rootdir}/lib/plugin --log-error=#{mysql_rootdir}/data/mysql-init.err --socket=#{mysql_rootdir}/data/mysql.sock --pid-file=#{mysql_rootdir}/data/mysqld_safe.pid --port=3308 --performance-schema)
+      sh %(#{mysql_rootdir}/bin/mysqld --no-defaults --initialize --basedir=#{mysql_rootdir} --datadir=#{mysql_rootdir}/data_replica --plugin-dir=#{mysql_rootdir}/lib/plugin --log-error=#{mysql_rootdir}/data_replica/mysql-init.err --socket=#{mysql_rootdir}/data_replica/mysql.sock --pid-file=#{mysql_rootdir}/data_replica/mysqld_safe.pid --port=3310 --performance-schema)
       sleep_for 5
       `pgrep -f "#{mysql_rootdir}/bin/mysqld" `.split("\n").each do |spid|
           p = spid.to_i
@@ -54,17 +56,27 @@ namespace :ci do
       end
       sleep_for 2
       passwd = ''
+      passwd_replica = ''
       File.open("#{mysql_rootdir}/data/mysql-init.err").each do |line|
           if match = line.match("A temporary password is generated for root@localhost: (.*)$")
               passwd = match.captures.first
               break
           end
       end
+      File.open("#{mysql_rootdir}/data_replica/mysql-init.err").each do |line|
+          if match = line.match("A temporary password is generated for root@localhost: (.*)$")
+              passwd_replica = match.captures.first
+              break
+          end
+      end
 
-      sh %(#{mysql_rootdir}/bin/mysqld --no-defaults --basedir=#{mysql_rootdir} --datadir=#{mysql_rootdir}/data --log-error=#{mysql_rootdir}/data/mysql.err --socket=#{mysql_rootdir}/data/mysql.sock --pid-file=#{mysql_rootdir}/data/mysqld_safe.pid --port=3308 --performance-schema --daemonize >/dev/null 2>&1)
+      sh %(#{mysql_rootdir}/bin/mysqld --no-defaults --basedir=#{mysql_rootdir} --datadir=#{mysql_rootdir}/data --log-error=#{mysql_rootdir}/data/mysql.err --socket=#{mysql_rootdir}/data/mysql.sock --pid-file=#{mysql_rootdir}/data/mysqld_safe.pid --port=3308 --log-bin=#{mysql_rootdir}/data/mysql-bin.log --server-id=1 --performance-schema --daemonize >/dev/null 2>&1)
+      sh %(#{mysql_rootdir}/bin/mysqld --no-defaults --basedir=#{mysql_rootdir} --datadir=#{mysql_rootdir}/data_replica --log-error=#{mysql_rootdir}/data_replica/mysql.err --socket=#{mysql_rootdir}/data_replica/mysql.sock --pid-file=#{mysql_rootdir}/data_replica/mysqld_safe.pid --port=3310 --log-bin=#{mysql_rootdir}/data_replica/mysql-bin.log --server-id=2 --performance-schema --daemonize >/dev/null 2>&1)
       Wait.for 33_08, 10
+      Wait.for 33_10, 10
       #reset root password
       sh %(#{mysql_rootdir}/bin/mysql --connect-expired-password -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('');" -uroot -p'#{passwd}' --socket=#{mysql_rootdir}/data/mysql.sock)
+      sh %(#{mysql_rootdir}/bin/mysql --connect-expired-password -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('');" -uroot -p'#{passwd_replica}' --socket=#{mysql_rootdir}/data_replica/mysql.sock)
       sh %(#{mysql_rootdir}/bin/mysql -e "create user 'dog'@'localhost' identified by 'dog'" -uroot --socket=#{mysql_rootdir}/data/mysql.sock)
       sh %(#{mysql_rootdir}/bin/mysql -e "GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'dog'@'localhost' WITH MAX_USER_CONNECTIONS 5;" -uroot --socket=#{mysql_rootdir}/data/mysql.sock)
       sh %(#{mysql_rootdir}/bin/mysql -e "CREATE DATABASE testdb;" -uroot --socket=#{mysql_rootdir}/data/mysql.sock)
@@ -97,6 +109,7 @@ namespace :ci do
           Process.kill "TERM", p
       end
       sh %(rm -rf #{mysql_rootdir}/data)
+      sh %(rm -rf #{mysql_rootdir}/data_replica)
     end
 
     task :execute do
