@@ -10,7 +10,8 @@ from collections import defaultdict, Counter, deque
 # project
 from checks import AgentCheck
 from config import _is_affirmative
-from utils.dockerutil import find_cgroup, find_cgroup_filename_pattern, get_client, MountException, set_docker_settings
+from utils.dockerutil import find_cgroup, find_cgroup_filename_pattern, get_client, MountException, \
+    set_docker_settings, image_tag_extractor, container_name_extractor
 from utils.platform import Platform
 
 
@@ -83,40 +84,6 @@ DEFAULT_IMAGE_TAGS = [
     'image_name',
     'image_tag'
 ]
-
-
-def image_tag_extractor(co, key):
-    if "Image" in co:
-        split = co["Image"].split(":")
-        if len(split) <= key:
-            return None
-        elif len(split) > 2:
-            # if the repo is in the image name and has the form 'docker.clearbit:5000'
-            # the split will be like [repo_url, repo_port/image_name, image_tag]. Let's avoid that
-            split = [':'.join(split[:-1]), split[-1]]
-        return [split[key]]
-    if "RepoTags" in co:
-        splits = [el.split(":") for el in co["RepoTags"]]
-        tags = []
-        for split in splits:
-            if len(split) > 2:
-                split = [':'.join(split[:-1]), split[-1]]
-            if len(split) > key:
-                tags.append(split[key])
-        if len(tags) > 0:
-            return list(set(tags))
-    return None
-
-
-def container_name_extractor(c):
-    # we sort the list to make sure that a docker API update introducing
-    # new names with a single "/" won't make us report dups.
-    names = sorted(c.get('Names', []))
-    for name in names:
-        # the leading "/" is legit, if there's another one it means the name is actually an alias
-        if name.count('/') <= 1:
-            return [str(name).lstrip('/')]
-    return [c.get('Id')[:11]]
 
 
 TAG_EXTRACTORS = {
