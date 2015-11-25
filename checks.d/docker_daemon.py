@@ -12,6 +12,7 @@ from checks import AgentCheck
 from config import _is_affirmative
 from utils.dockerutil import find_cgroup, find_cgroup_filename_pattern, get_client, MountException, \
     set_docker_settings, image_tag_extractor, container_name_extractor
+from utils.kubeutil import get_kube_labels
 from utils.platform import Platform
 
 
@@ -162,8 +163,7 @@ class DockerDaemon(AgentCheck):
             # Set tagging options
             self.custom_tags = instance.get("tags", [])
             self.collect_labels_as_tags = instance.get("collect_labels_as_tags", [])
-            if self.is_k8s():
-                self.collect_labels_as_tags.append("io.kubernetes.pod.name")
+            self.kube_labels = {}
 
             self.use_histogram = _is_affirmative(instance.get('use_histogram', False))
             performance_tags = instance.get("performance_tags", DEFAULT_PERFORMANCE_TAGS)
@@ -205,7 +205,6 @@ class DockerDaemon(AgentCheck):
 
     def check(self, instance):
         """Run the Docker check for one instance."""
-
         if not self.init_success:
             # Initialization can fail if cgroups are not ready. So we retry if needed
             # https://github.com/DataDog/dd-agent/issues/1896
@@ -220,6 +219,9 @@ class DockerDaemon(AgentCheck):
 
         if self.collect_ecs_tags:
             self.refresh_ecs_tags()
+
+        if self.is_k8s():
+            self.kube_labels = get_kube_labels()
 
         # Get the list of containers and the index of their names
         containers_by_id = self._get_and_count_containers()
@@ -314,7 +316,13 @@ class DockerDaemon(AgentCheck):
         """Generate the tags for a given entity (container or image) according to a list of tag names."""
         # Start with custom tags
         tags = list(self.custom_tags)
+
+        # Collect pod names as tags on kubernetes
+        if self.is_k8s() and POD_NAME_LABEL not in self.collect_labels_as_tags:
+            self.collect_labels_as_tags.append(POD_NAME_LABEL)
+
         if entity is not None:
+            pod_name = None
 
             # Get labels as tags
             labels = entity.get("Labels")
@@ -323,7 +331,16 @@ class DockerDaemon(AgentCheck):
                     if k in labels:
                         v = labels[k]
                         if k == POD_NAME_LABEL and self.is_k8s():
+                            pod_name = v
                             k = "pod_name"
+                            if "-" in pod_name:
+                                replication_controller = "-".join(pod_name.split("-")[:-1])
+                                if "/" in replication_controller:
+                                    namespace, replication_controller = replication_controller.split("/", 1)
+                                    tags.append("kube_namespace:%s" % namespace)
+
+                                tags.append("kube_replication_controller:%s" % replication_controller)
+
                         if not v:
                             tags.append(k)
                         else:
@@ -346,6 +363,13 @@ class DockerDaemon(AgentCheck):
                 if entity_id in self.ecs_tags:
                     ecs_tags = self.ecs_tags[entity_id]
                     tags.extend(ecs_tags)
+
+            # Add kube labels
+            if self.is_k8s():
+                kube_tags = self.kube_labels.get(pod_name)
+                if kube_tags:
+                    tags.extend(list(kube_tags))
+
 
         return tags
 
@@ -458,8 +482,14 @@ class DockerDaemon(AgentCheck):
             self._report_net_metrics(container, tags)
 
         if containers_without_proc_root:
-            self.warning("Couldn't find pid directory for container: {0}. They'll be missing network metrics".format(
-                ",".join(containers_without_proc_root)))
+            message = "Couldn't find pid directory for container: {0}. They'll be missing network metrics".format(
+                ",".join(containers_without_proc_root))
+            if not self.is_k8s():
+                self.warning(message)
+            else:
+                # On kubernetes, this is kind of expected. Network metrics will be collected by the kubernetes integration anyway
+                self.log.debug(message)
+
 
     def _report_cgroup_metrics(self, container, tags):
         try:
