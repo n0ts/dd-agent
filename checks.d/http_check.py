@@ -34,6 +34,8 @@ from util import headers as agent_headers
 from utils.proxy import get_proxy
 
 DEFAULT_EXPECTED_CODE = "(1|2|3)\d\d"
+CONTENT_LENGTH = 200
+
 
 class WeakCiphersHTTPSConnection(urllib3.connection.VerifiedHTTPSConnection):
 
@@ -225,7 +227,7 @@ class HTTPCheck(NetworkCheck):
                 instance_proxy.pop('http')
                 instance_proxy.pop('https')
             else:
-                for url in self.proxies['no'].replace(';',',').split(","):
+                for url in self.proxies['no'].replace(';', ',').split(","):
                     if url in parsed_uri.netloc:
                         instance_proxy.pop('http')
                         instance_proxy.pop('https')
@@ -258,7 +260,7 @@ class HTTPCheck(NetworkCheck):
                 "%s. Connection failed after %s ms" % (str(e), length)
             ))
 
-        except socket.error, e:
+        except socket.error as e:
             length = int((time.time() - start) * 1000)
             self.log.info("%s is DOWN, error: %s. Connection failed after %s ms"
                           % (addr, repr(e), length))
@@ -268,7 +270,7 @@ class HTTPCheck(NetworkCheck):
                 "Socket error: %s. Connection failed after %s ms" % (repr(e), length)
             ))
 
-        except Exception, e:
+        except Exception as e:
             length = int((time.time() - start) * 1000)
             self.log.error("Unhandled exception %s. Connection failed after %s ms"
                            % (str(e), length))
@@ -290,8 +292,10 @@ class HTTPCheck(NetworkCheck):
             else:
                 expected_code = http_response_status_code
 
-            message = "Incorrect HTTP return code for url %s. Expected %s, got %s" % (
+            message = "Incorrect HTTP return code for url %s. Expected %s, got %s." % (
                 addr, expected_code, str(r.status_code))
+            if include_content:
+                message += '\nContent: {}'.format(r.content[:CONTENT_LENGTH])
 
             self.log.info(message)
 
@@ -314,10 +318,13 @@ class HTTPCheck(NetworkCheck):
                 else:
                     self.log.info("%s not found in content" % content_match)
                     self.log.debug("Content returned:\n%s" % content)
+                    message = 'Content "%s" not found in response.' % content_match
+                    if include_content:
+                        message += '\nContent: {}'.format(content[:CONTENT_LENGTH])
                     service_checks.append((
                         self.SC_STATUS,
                         Status.DOWN,
-                        'Content "%s" not found in response' % content_match
+                        message
                     ))
             else:
                 self.log.debug("%s is UP" % addr)

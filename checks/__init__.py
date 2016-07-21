@@ -29,7 +29,7 @@ import yaml
 
 # project
 from checks import check_status
-from util import get_hostname, get_next_id, LaconicFilter, yLoader
+from util import get_hostname, get_next_id, yLoader
 from utils.platform import Platform
 from utils.profile import pretty_statistics
 if Platform.is_windows():
@@ -87,10 +87,6 @@ class Check(object):
         self._sample_store = {}
         self._counters = {}  # metric_name: bool
         self.logger = logger
-        try:
-            self.logger.addFilter(LaconicFilter())
-        except Exception:
-            self.logger.exception("Trying to install laconic log filter and failed")
 
     def normalize(self, metric, prefix=None):
         """Turn a metric into a well-formed metric name
@@ -161,7 +157,7 @@ class Check(object):
             raise CheckException("Saving a sample for an undefined metric: %s" % metric)
         try:
             value = cast_metric_val(value)
-        except ValueError, ve:
+        except ValueError as ve:
             raise NaN(ve)
 
         # Sort and validate tags
@@ -206,7 +202,7 @@ class Check(object):
             raise
         except UnknownValue:
             raise
-        except Exception, e:
+        except Exception as e:
             raise NaN(e)
 
     def get_sample_with_timestamp(self, metric, tags=None, device_name=None, expire=True):
@@ -763,7 +759,7 @@ class AgentCheck(object):
                         i, check_status.STATUS_OK,
                         instance_check_stats=instance_check_stats
                     )
-            except Exception, e:
+            except Exception as e:
                 self.log.exception("Check '%s' instance #%s failed" % (self.name, i))
                 instance_status = check_status.InstanceStatus(
                     i, check_status.STATUS_ERROR,
