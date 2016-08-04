@@ -433,6 +433,8 @@ class HTTPCheck(NetworkCheck):
                 msg = u"%d %s\n\n%s" % (code, reason, content)
                 msg = msg.rstrip()
 
+        # FIXME Temporary fixed
+        msg = msg.decode('utf-8')
         self.service_check(sc_name,
                            NetworkCheck.STATUS_TO_SERVICE_CHECK[status],
                            tags=tags,
