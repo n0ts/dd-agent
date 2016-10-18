@@ -278,7 +278,6 @@ SYNTHETIC_VARS = {
 class MySql(AgentCheck):
     SERVICE_CHECK_NAME = 'mysql.can_connect'
     SLAVE_SERVICE_CHECK_NAME = 'mysql.replication.slave_running'
-    MAX_CUSTOM_QUERIES = 20
 
     def __init__(self, name, init_config, agentConfig, instances=None):
         AgentCheck.__init__(self, name, init_config, agentConfig, instances)
@@ -600,16 +599,10 @@ class MySql(AgentCheck):
         self._submit_metrics(metrics, results, tags)
 
         # Collect custom query metrics
-        # Max of 20 queries allowed
         if isinstance(queries, list):
-            for index, check in enumerate(queries[:self.MAX_CUSTOM_QUERIES]):
+            for index, check in enumerate(queries):
                 total_tags = tags + check.get('tags', [])
                 self._collect_dict(check['type'], {check['field']: check['metric']}, check['query'], db, tags=total_tags)
-
-            if len(queries) > self.MAX_CUSTOM_QUERIES:
-                self.warning("Maximum number (%s) of custom queries reached.  Skipping the rest."
-                             % self.MAX_CUSTOM_QUERIES)
-
 
     def _is_master(self, slaves, binlog):
         if slaves > 0 or binlog:
